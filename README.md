@@ -1,11 +1,11 @@
-# Svoboden (Свободен)
+# Liberty (Свободен)
 
 [![Android](https://img.shields.io/badge/Platform-Android-green?logo=android)](https://developer.android.com/)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0-blue?logo=kotlin)](https://kotlinlang.org/)
 [![Compose](https://img.shields.io/badge/Jetpack-Compose-4285F4?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Svoboden** — это приватный трекер привычек с открытым исходным кодом, созданный для тех, кто стремится к свободе от нежелательных зависимостей. Приложение ориентировано на максимальную конфиденциальность: ваши данные зашифрованы и никогда не покидают ваше устройство.
+**Liberty** — это приватный трекер привычек с открытым исходным кодом, созданный для тех, кто стремится к свободе от нежелательных зависимостей. Приложение ориентировано на максимальную конфиденциальность: ваши данные зашифрованы и никогда не покидают ваше устройство.
 
 ## ✨ Ключевые особенности
 
