@@ -1,11 +1,14 @@
 package com.svoboden.app.core.security
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 
 class BiometricAuthenticator(private val activity: FragmentActivity) {
 
+    @RequiresApi(Build.VERSION_CODES.P)
     fun authenticate(
         onSuccess: () -> Unit,
         onError: (String) -> Unit,
@@ -14,10 +17,11 @@ class BiometricAuthenticator(private val activity: FragmentActivity) {
         val executor = ContextCompat.getMainExecutor(activity)
         val prompt = BiometricPrompt(
             activity, executor,
-            object : BiometricPrompt.AuthenticationCallback() {
+             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     onSuccess()
                 }
+
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     if (errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
                         errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON
@@ -27,6 +31,7 @@ class BiometricAuthenticator(private val activity: FragmentActivity) {
                         onError(errString.toString())
                     }
                 }
+
                 override fun onAuthenticationFailed() {
                     // Неверный биометрический образец — промпт остаётся открытым.
                 }

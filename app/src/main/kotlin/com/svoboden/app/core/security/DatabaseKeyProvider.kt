@@ -8,6 +8,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.SecureRandom
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.content.edit
 
 /**
  * Хранит passphrase для SQLCipher внутри EncryptedSharedPreferences
@@ -16,7 +17,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class DatabaseKeyProvider @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) {
     private val masterKey = MasterKey.Builder(context)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -36,9 +37,9 @@ class DatabaseKeyProvider @Inject constructor(
             return Base64.decode(existing, Base64.NO_WRAP)
         }
         val newKey = ByteArray(32).also { SecureRandom().nextBytes(it) }
-        encryptedPrefs.edit()
-            .putString(KEY_DB_PASSPHRASE, Base64.encodeToString(newKey, Base64.NO_WRAP))
-            .apply()
+        encryptedPrefs.edit {
+            putString(KEY_DB_PASSPHRASE, Base64.encodeToString(newKey, Base64.NO_WRAP))
+        }
         return newKey
     }
 
