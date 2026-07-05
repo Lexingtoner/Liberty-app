@@ -104,7 +104,7 @@ private fun ReadyAppContent(
         val profileCount = profileRepository.count()
         startDestination = when {
             !onboardingDone -> Screen.Onboarding.route
-            profileCount <= 1 -> Screen.Dashboard.route
+            profileCount <= 1 -> Screen.Main.route
             else -> Screen.ProfileSelect.route
         }
     }

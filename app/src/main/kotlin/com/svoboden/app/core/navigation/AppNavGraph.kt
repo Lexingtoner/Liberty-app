@@ -1,28 +1,24 @@
 package com.svoboden.app.core.navigation
 
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.window.isPopupLayout
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.svoboden.app.ui.screens.achievements.AchievementsScreen
-import com.svoboden.app.ui.screens.dashboard.DashboardScreen
 import com.svoboden.app.ui.screens.habitedit.HabitEditScreen
 import com.svoboden.app.ui.screens.journal.JournalScreen
+import com.svoboden.app.ui.screens.main.MainScreen
 import com.svoboden.app.ui.screens.onboarding.OnboardingScreen
 import com.svoboden.app.ui.screens.profiles.ProfileSelectScreen
-import com.svoboden.app.ui.screens.settings.SettingsScreen
-import com.svoboden.app.ui.screens.stats.StatsScreen
 
-// Длительность и кривая примерно соответствуют Material 3 motion-токенам
-// (--dur-base ~300ms, стандартный easing). Общий для всех переходов — держит
-// навигацию предсказуемой, а не самопальной для каждого экрана отдельно.
 private const val MOTION_DURATION_MS = 300
 
 @Composable
@@ -39,6 +35,7 @@ fun AppNavGraph(
         },
         exitTransition = { fadeOut(tween(MOTION_DURATION_MS / 2)) },
         popEnterTransition = { fadeIn(tween(MOTION_DURATION_MS)) },
+        route = "root",
         popExitTransition = {
             slideOutHorizontally(tween(MOTION_DURATION_MS)) { it / 4 } +
                 fadeOut(tween(MOTION_DURATION_MS / 2))
@@ -48,39 +45,31 @@ fun AppNavGraph(
         composable(Screen.Onboarding.route) {
             OnboardingScreen(
                 onComplete = {
-                    navController.navigate(Screen.Dashboard.route) {
+                    navController.navigate(Screen.Main.route) {
                         popUpTo(Screen.Onboarding.route) { inclusive = true }
                     }
                 }
             )
         }
 
-        composable(Screen.Dashboard.route) {
-            DashboardScreen(
+        composable(Screen.Main.route) {
+            MainScreen(
+                onEditHabit = { habitId -> navController.navigate(Screen.HabitEdit.createRoute(habitId)) },
                 onNavigateToJournal = { navController.navigate(Screen.Journal.route) },
-                onNavigateToStats = { navController.navigate(Screen.Stats.route) },
-                onNavigateToAchievements = { navController.navigate(Screen.Achievements.route) },
-                onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                onEditHabit = { habitId -> navController.navigate(Screen.HabitEdit.createRoute(habitId)) }
+                onNavigateToProfileSelect = {
+                    navController.navigate(Screen.ProfileSelect.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
             )
         }
 
         composable(Screen.Journal.route) { JournalScreen() }
-        composable(Screen.Stats.route) { StatsScreen() }
-        composable(Screen.Achievements.route) { AchievementsScreen() }
-
-        composable(
-            route = Screen.Settings.route
-        ) {
-            SettingsScreen(
-                onNavigateToProfiles = { navController.navigate(Screen.ProfileSelect.route) }
-            )
-        }
 
         composable(Screen.ProfileSelect.route) {
             ProfileSelectScreen(
                 onProfileSelected = {
-                    navController.navigate(Screen.Dashboard.route) {
+                    navController.navigate(Screen.Main.route) {
                         popUpTo(0) { inclusive = true }
                     }
                 }

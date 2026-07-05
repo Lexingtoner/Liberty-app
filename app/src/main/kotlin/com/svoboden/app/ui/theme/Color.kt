@@ -4,9 +4,11 @@ import androidx.compose.ui.graphics.Color
 
 // Базовая палитра (использовалась в исходной сокращённой теме — оставлена
 // для обратной совместимости на случай, если где-то ещё ссылаются напрямую)
-val GreenPrimary = Color(0xFF2E7D32)
-val AmberAccent = Color(0xFFF59E0B)
+val GreenPrimary = Color(0xFF006A4E)
+val AmberAccent = Color(0xFFE69100)
 val BackgroundDark = Color(0xFF121A12)
+val BackgroundLight = Color(0xFFF8FAFC)
+val DarkGreenCard = Color(0xFF004D39)
 
 // ФИКС относительно прошлой версии: MaterialTheme.colorScheme использует role'ы
 // error/outline/surfaceVariant/onSurfaceVariant повсеместно в стандартных

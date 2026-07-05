@@ -2,7 +2,12 @@ package com.svoboden.app.core.navigation
 
 sealed class Screen(val route: String) {
     object Onboarding : Screen("onboarding")
-    object Dashboard : Screen("dashboard")
+    object Main : Screen("main")
+    object Home : Screen("home")
+    object Community : Screen("community")
+    object Track : Screen("track")
+    object Profile : Screen("profile")
+
     object Journal : Screen("journal")
     object Stats : Screen("stats")
     object Settings : Screen("settings")
