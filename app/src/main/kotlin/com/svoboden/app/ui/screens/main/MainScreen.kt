@@ -23,11 +23,15 @@ import androidx.navigation.compose.rememberNavController
 import com.svoboden.app.core.navigation.Screen
 import com.svoboden.app.ui.screens.community.CommunityScreen
 import com.svoboden.app.ui.screens.home.HomeScreen
+import com.svoboden.app.ui.screens.onboarding.OnboardingIntroScreen
+import com.svoboden.app.ui.screens.onboarding.OnboardingScreen
+import com.svoboden.app.ui.screens.onboarding.OnboardingViewModel
 import com.svoboden.app.ui.screens.profile.ProfileScreen
 import com.svoboden.app.ui.screens.track.TrackScreen
 
 @Composable
 fun MainScreen(
+    initialOnboardingDone: Boolean,
     onEditHabit: (Long) -> Unit,
     onNavigateToJournal: () -> Unit,
     onNavigateToProfileSelect: () -> Unit
@@ -35,6 +39,11 @@ fun MainScreen(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+
+    val startDestination = if (initialOnboardingDone) Screen.Home.route else Screen.OnboardingIntro.route
+
+    val onboardingRoutes = listOf(Screen.OnboardingIntro.route, Screen.Onboarding.route)
+    val showBottomBar = currentDestination?.route !in onboardingRoutes
 
     val items = listOf(
         NavigationItem("Главная", Screen.Home, Icons.Default.Home),
@@ -45,31 +54,51 @@ fun MainScreen(
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                items.forEach { item ->
-                    NavigationBarItem(
-                        icon = { Icon(item.icon, contentDescription = item.title) },
-                        label = { Text(item.title) },
-                        selected = currentDestination?.hierarchy?.any { it.route == item.screen.route } == true,
-                        onClick = {
-                            navController.navigate(item.screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+            if (showBottomBar) {
+                NavigationBar {
+                    items.forEach { item ->
+                        NavigationBarItem(
+                            icon = { Icon(item.icon, contentDescription = item.title) },
+                            label = { Text(item.title) },
+                            selected = currentDestination?.hierarchy?.any { it.route == item.screen.route } == true,
+                            onClick = {
+                                navController.navigate(item.screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Home.route,
+            startDestination = startDestination,
             modifier = Modifier.padding(innerPadding)
         ) {
+            composable(Screen.OnboardingIntro.route) {
+                OnboardingIntroScreen(
+                    onFinished = {
+                        navController.navigate(Screen.Onboarding.route) {
+                            popUpTo(Screen.OnboardingIntro.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(Screen.Onboarding.route) {
+                OnboardingScreen(
+                    onComplete = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Onboarding.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
             composable(Screen.Home.route) {
                 HomeScreen(
                     onEditHabit = onEditHabit,
@@ -84,7 +113,8 @@ fun MainScreen(
             }
             composable(Screen.Profile.route) {
                 ProfileScreen(
-                    onNavigateToProfileSelect = onNavigateToProfileSelect
+                    onNavigateToProfileSelect = onNavigateToProfileSelect,
+                    onEditHabit = onEditHabit
                 )
             }
         }

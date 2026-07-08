@@ -36,14 +36,29 @@ fun HomeScreen(
 ) {
     val habits by viewModel.habits.collectAsStateWithLifecycle()
     val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
+    val totalMoney by viewModel.totalMoneySaved.collectAsStateWithLifecycle()
+    val healthProgress by viewModel.healthProgress.collectAsStateWithLifecycle()
+    val quote = viewModel.dailyQuote
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is com.svoboden.app.ui.screens.dashboard.DashboardEvent.ShowMessage -> {
+                    snackbarHostState.showSnackbar(event.message)
+                }
+            }
+        }
+    }
     
     // В реальном приложении это будет приходить из репозитория профиля
     val userName = "Alex" 
     
     Scaffold(
         topBar = {
-            HomeHeader(userName = userName)
+            HomeHeader(userName = userName, onNotificationClick = { viewModel.onNotificationClick() })
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Column(
@@ -62,8 +77,12 @@ fun HomeScreen(
             val streak = progress?.streak
             val days = if (streak is StreakResult.Active) streak.elapsedMs / 86_400_000L else 0L
             
+            val goal = firstHabit?.goalDays ?: 30
+            val progressFraction = (days.toFloat() / goal).coerceIn(0f, 1f)
+
             MainProgressCircle(
                 days = days.toInt(),
+                progressFraction = progressFraction,
                 habitName = firstHabit?.customName ?: firstHabit?.type?.displayName ?: "Свободный путь"
             )
             
@@ -74,14 +93,14 @@ fun HomeScreen(
                 StatSmallCard(
                     modifier = Modifier.weight(1f),
                     title = "Сэкономлено",
-                    value = "$120",
+                    value = "$%.0f".format(totalMoney),
                     icon = Icons.Default.Payments,
                     iconColor = Color(0xFFE69100)
                 )
                 StatSmallCard(
                     modifier = Modifier.weight(1f),
                     title = "Здоровье",
-                    value = "45%",
+                    value = "$healthProgress%",
                     icon = Icons.Default.HealthAndSafety,
                     iconColor = Color(0xFF3B82F6),
                     showTrend = true
@@ -92,15 +111,15 @@ fun HomeScreen(
             
             // Карточка мотивации
             MotivationCard(
-                quote = "Секрет того, чтобы вырваться вперед, в том, чтобы начать.",
-                author = "Марк Твен"
+                quote = quote.text,
+                author = quote.author
             )
             
             Spacer(modifier = Modifier.height(24.dp))
             
             // Кнопка действия
             Button(
-                onClick = onNavigateToJournal,
+                onClick = { viewModel.logCraving() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(60.dp),
@@ -124,7 +143,7 @@ fun HomeScreen(
 }
 
 @Composable
-fun HomeHeader(userName: String) {
+fun HomeHeader(userName: String, onNotificationClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -150,17 +169,17 @@ fun HomeHeader(userName: String) {
                 color = Color(0xFF006A4E)
             )
         }
-        IconButton(onClick = { }) {
+        IconButton(onClick = onNotificationClick) {
             Icon(Icons.Default.NotificationsNone, contentDescription = "Уведомления")
         }
     }
 }
 
 @Composable
-fun MainProgressCircle(days: Int, habitName: String) {
+fun MainProgressCircle(days: Int, progressFraction: Float, habitName: String) {
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(240.dp)) {
         CircularProgressIndicator(
-            progress = { 0.7f }, // Заглушка для прогресса до цели
+            progress = { progressFraction },
             modifier = Modifier.fillMaxSize(),
             color = Color(0xFF006A4E),
             strokeWidth = 12.dp,

@@ -5,6 +5,7 @@ import com.svoboden.app.data.local.entity.ProfileEntity
 import com.svoboden.app.domain.model.Profile
 import com.svoboden.app.domain.repository.ProfileRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
@@ -14,6 +15,7 @@ class ProfileRepositoryImpl @Inject constructor(
 
     override fun observeAll(): Flow<List<Profile>> =
         dao.observeAll().map { list -> list.map { it.toDomain() } }
+
 
     override suspend fun getActive(): Profile? = dao.getActive()?.toDomain()
     override suspend fun getFirst(): Profile? = dao.getFirst()?.toDomain()

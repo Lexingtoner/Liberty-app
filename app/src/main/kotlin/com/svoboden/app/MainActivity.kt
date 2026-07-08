@@ -1,7 +1,9 @@
 package com.svoboden.app
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -41,6 +43,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var userProfileRepository: UserProfileRepository
     @Inject lateinit var appPreferences: AppPreferences
 
+    @RequiresApi(Build.VERSION_CODES.P)
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         var isReady by mutableStateOf(value = false)
@@ -76,6 +79,7 @@ class MainActivity : FragmentActivity() {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.P)
 @Composable
 private fun ReadyAppContent(
     appLockManager: AppLockManager,
@@ -94,17 +98,13 @@ private fun ReadyAppContent(
     val dynamicColorEnabled by appPreferences.dynamicColorEnabled.collectAsStateWithLifecycle(initialValue = false)
 
     var startDestination by remember { mutableStateOf<String?>(null) }
+    var onboardingCompleted by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        // ФИКС: раньше решение "показать онбординг" зависело от profileRepository.count() == 0,
-        // но ActiveProfileHolder.init() теперь ВСЕГДА создаёт хотя бы один профиль —
-        // count() уже никогда не будет равен 0 к этому моменту. Источник правды для
-        // онбординга — UserProfile.onboardingCompleted; profile count решает только
-        // нужен ли экран выбора профиля (семейный режим, 2+ профиля).
         val onboardingDone = userProfileRepository.observeProfile().first()?.onboardingCompleted ?: false
+        onboardingCompleted = onboardingDone
         val profileCount = profileRepository.count()
         startDestination = when {
-            !onboardingDone -> Screen.Onboarding.route
-            profileCount <= 1 -> Screen.Main.route
+            profileCount <= 1 || !onboardingDone -> Screen.Main.route
             else -> Screen.ProfileSelect.route
         }
     }
@@ -116,7 +116,11 @@ private fun ReadyAppContent(
     // переприменять на любом уровне композиции.
     SvobodenTheme(themeMode = themeMode, useDynamicColor = dynamicColorEnabled) {
         Box(Modifier.fillMaxSize()) {
-            AppNavGraph(navController = navController, startDestination = destination)
+            AppNavGraph(
+                navController = navController, 
+                startDestination = destination,
+                onboardingDone = onboardingCompleted
+            )
             AnimatedVisibility(visible = isLocked, enter = fadeIn(), exit = fadeOut()) {
                 LockScreen(onUnlocked = appLockManager::unlock)
             }

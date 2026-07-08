@@ -16,6 +16,7 @@ import androidx.navigation.navArgument
 import com.svoboden.app.ui.screens.habitedit.HabitEditScreen
 import com.svoboden.app.ui.screens.journal.JournalScreen
 import com.svoboden.app.ui.screens.main.MainScreen
+import com.svoboden.app.ui.screens.onboarding.OnboardingIntroScreen
 import com.svoboden.app.ui.screens.onboarding.OnboardingScreen
 import com.svoboden.app.ui.screens.profiles.ProfileSelectScreen
 
@@ -25,6 +26,7 @@ private const val MOTION_DURATION_MS = 300
 fun AppNavGraph(
     navController: NavHostController,
     startDestination: String,
+    onboardingDone: Boolean
 ) {
     NavHost(
         navController,
@@ -42,18 +44,9 @@ fun AppNavGraph(
         }
     ) {
 
-        composable(Screen.Onboarding.route) {
-            OnboardingScreen(
-                onComplete = {
-                    navController.navigate(Screen.Main.route) {
-                        popUpTo(Screen.Onboarding.route) { inclusive = true }
-                    }
-                }
-            )
-        }
-
         composable(Screen.Main.route) {
             MainScreen(
+                initialOnboardingDone = onboardingDone,
                 onEditHabit = { habitId -> navController.navigate(Screen.HabitEdit.createRoute(habitId)) },
                 onNavigateToJournal = { navController.navigate(Screen.Journal.route) },
                 onNavigateToProfileSelect = {

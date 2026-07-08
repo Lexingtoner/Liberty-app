@@ -2,6 +2,8 @@ package com.svoboden.app.core.security
 
 import android.content.Context
 import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricViewModel
+import androidx.fragment.app.FragmentActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -13,6 +15,10 @@ class BiometricAvailability @Inject constructor(
     enum class Status { AVAILABLE, NO_HARDWARE, NOT_ENROLLED, UNAVAILABLE }
 
     fun check(): Status {
+        val context = context.applicationContext
+        if (!context.packageManager.hasSystemFeature("android.hardware.biometrics")) {
+            return Status.NO_HARDWARE
+        }
         val manager = BiometricManager.from(context)
         return when (
             manager.canAuthenticate(

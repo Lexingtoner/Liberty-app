@@ -8,7 +8,8 @@ import javax.inject.Inject
 data class HabitProgress(
     val habit: Habit,
     val streak: StreakResult,
-    val totalCleanDays: Int
+    val totalCleanDays: Int,
+    val moneySaved: Double
 )
 
 class GetProgressUseCase @Inject constructor(
@@ -20,6 +21,7 @@ class GetProgressUseCase @Inject constructor(
         val habit = habitRepo.getById(habitId) ?: error("Habit $habitId not found")
         val streak = calculateStreak(habitId)
         val cleanDays = journalRepo.countCleanDays(habitId)
-        return HabitProgress(habit, streak, cleanDays)
+        val moneySaved = cleanDays * habit.dailyCost
+        return HabitProgress(habit, streak, cleanDays, moneySaved)
     }
 }

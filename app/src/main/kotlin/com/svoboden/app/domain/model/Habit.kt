@@ -9,6 +9,7 @@ data class Habit(
     val type: HabitType,
     val customName: String? = null,        // Только для HabitType.OTHER
     val unit: String,                       // Кастомная единица измерения
+    val dailyCost: Double = 0.0,            // Стоимость привычки в день (для расчета экономии)
     val goalDays: Int? = null,              // null = навсегда
     val createdAt: Long = System.currentTimeMillis()
 ) {

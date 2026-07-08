@@ -1,5 +1,6 @@
 package com.svoboden.app.core.security
 
+import android.net.wifi.aware.AttachCallback
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.svoboden.app.data.preferences.AppPreferences
@@ -20,6 +21,10 @@ class AppLockManager @Inject constructor(
     private val _isLocked = MutableStateFlow(value = false)
     val isLocked: StateFlow<Boolean> = _isLocked.asStateFlow()
 
+    private val _isBiometricLockEnabled = MutableStateFlow(value = false)
+
+    val isBiometricLockEnabled: StateFlow<Boolean> = _isBiometricLockEnabled.asStateFlow()
+
     private var backgroundedAtMillis: Long? = null
     private var lockEnabled = false
     private var timeoutSeconds = 0
@@ -30,6 +35,7 @@ class AppLockManager @Inject constructor(
         lockEnabled = appPreferences.biometricLockEnabled.first()
         timeoutSeconds = appPreferences.lockTimeoutSeconds.first()
         _isLocked.value = lockEnabled
+        _isBiometricLockEnabled.value = lockEnabled
     }
 
     /** Вызывается один раз после Ready — начинает отслеживать сворачивания. */

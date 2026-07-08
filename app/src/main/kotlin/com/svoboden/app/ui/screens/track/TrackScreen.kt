@@ -1,7 +1,10 @@
 package com.svoboden.app.ui.screens.track
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +19,10 @@ import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +38,35 @@ import com.svoboden.app.ui.screens.stats.StatsViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrackScreen(viewModel: StatsViewModel = hiltViewModel()) {
+    val habits by viewModel.habits.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showNoteDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showTriggerDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    if (showNoteDialog) {
+        AddNoteDialog(
+            onDismiss = { showNoteDialog = false },
+            onSave = { note ->
+                viewModel.addQuickNote(note)
+                showNoteDialog = false
+            }
+        )
+    }
+
+    if (showTriggerDialog) {
+        com.svoboden.app.ui.screens.journal.RelapseDialog(
+            onDismiss = { showTriggerDialog = false },
+            onConfirm = { triggerId, _ ->
+                triggerId?.let { viewModel.logTrigger(it) }
+                showTriggerDialog = false
+            }
+        )
+    }
+
+    LaunchedEffect(habits) {
+        if (uiState.selectedHabitId == null) habits.firstOrNull()?.let { viewModel.selectHabit(it.id) }
+    }
+
     Scaffold(
         topBar = {
             Row(
@@ -72,13 +108,34 @@ fun TrackScreen(viewModel: StatsViewModel = hiltViewModel()) {
                 .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            if (habits.size > 1) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
+                    items(habits) { habit ->
+                        FilterChip(
+                            selected = habit.id == uiState.selectedHabitId,
+                            onClick = { viewModel.selectHabit(habit.id) },
+                            label = { Text(habit.type.displayName) }
+                        )
+                    }
+                }
+            }
+
             // Карточка текущей цели
-            MilestoneCard(days = 21, subtitle = "Самая длинная серия достигнута")
+            MilestoneCard(
+                days = uiState.bestStreakDays.toInt(),
+                subtitle = "Ваш рекорд чистоты за всё время"
+            )
             
             Spacer(modifier = Modifier.height(24.dp))
             
             // Календарь
-            CalendarSection(monthName = "Сентябрь 2023")
+            CalendarSection(
+                monthName = "История прогресса",
+                stats = uiState.dailyStats
+            )
             
             Spacer(modifier = Modifier.height(24.dp))
             
@@ -87,7 +144,7 @@ fun TrackScreen(viewModel: StatsViewModel = hiltViewModel()) {
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 LogActionCard(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).clickable { showNoteDialog = true },
                     title = "Заметка",
                     subtitle = "Как вы себя чувствуете?",
                     icon = Icons.Default.AddCircleOutline,
@@ -95,7 +152,7 @@ fun TrackScreen(viewModel: StatsViewModel = hiltViewModel()) {
                     iconColor = Color(0xFF3182CE)
                 )
                 LogActionCard(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).clickable { showTriggerDialog = true },
                     title = "Триггер",
                     subtitle = "Определите стресс",
                     icon = Icons.Default.ElectricBolt,
@@ -107,10 +164,21 @@ fun TrackScreen(viewModel: StatsViewModel = hiltViewModel()) {
             Spacer(modifier = Modifier.height(16.dp))
             
             // Последняя запись
-            RecentNoteCard(
-                text = "Проснулся с чувством свежести. Утренняя рутина становится привычкой. Небольшая тяга около 14:00, но справился глубоким дыханием.",
-                time = "Записано 4 ч. назад"
-            )
+            val recentEntry = uiState.recentEntries.firstOrNull { it.customNote != null }
+            if (recentEntry != null) {
+                RecentNoteCard(
+                    text = recentEntry.customNote ?: "",
+                    time = "Записано " + android.text.format.DateUtils.getRelativeTimeSpanString(recentEntry.date).toString()
+                )
+            } else {
+                Text(
+                    "Нет недавних заметок",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
             
             Spacer(modifier = Modifier.height(20.dp))
         }
@@ -118,7 +186,7 @@ fun TrackScreen(viewModel: StatsViewModel = hiltViewModel()) {
         // Плавающая кнопка предупреждения как на скриншоте
         Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.BottomEnd) {
             FloatingActionButton(
-                onClick = { },
+                onClick = { showTriggerDialog = true },
                 containerColor = Color(0xFFE69100),
                 contentColor = Color.White,
                 shape = CircleShape
@@ -131,6 +199,15 @@ fun TrackScreen(viewModel: StatsViewModel = hiltViewModel()) {
 
 @Composable
 fun MilestoneCard(days: Int, subtitle: String) {
+    val nextMilestone = when {
+        days < 7 -> 7
+        days < 30 -> 30
+        days < 90 -> 90
+        days < 365 -> 365
+        else -> days + 30
+    }
+    val progress = (days.toFloat() / nextMilestone).coerceIn(0f, 1f)
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -141,7 +218,7 @@ fun MilestoneCard(days: Int, subtitle: String) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "ТЕКУЩАЯ ВЕХА",
+                text = "ТЕКУЩАЯ ВЕХА ($nextMilestone ДН.)",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFFB2F5EA),
@@ -165,7 +242,7 @@ fun MilestoneCard(days: Int, subtitle: String) {
             Text(text = subtitle, fontSize = 14.sp, color = Color(0xFFB2F5EA))
             Spacer(modifier = Modifier.height(16.dp))
             LinearProgressIndicator(
-                progress = { 0.7f },
+                progress = { progress },
                 modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
                 color = Color(0xFF38A169),
                 trackColor = Color(0xFF2D3748)
@@ -175,7 +252,7 @@ fun MilestoneCard(days: Int, subtitle: String) {
 }
 
 @Composable
-fun CalendarSection(monthName: String) {
+fun CalendarSection(monthName: String, stats: List<com.svoboden.app.domain.usecase.DayStat>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -204,13 +281,23 @@ fun CalendarSection(monthName: String) {
             
             Spacer(modifier = Modifier.height(8.dp))
             
-            // Сетка календаря (заглушка на одну неделю для демонстрации стиля)
-            val days = (27..31).toList() + (1..23).toList()
+            // Сетка календаря
+            // Для упрощения возьмем последние 28 дней из статистики
+            val recentStats = stats.takeLast(28)
             Column {
-                days.chunked(7).forEach { week ->
+                recentStats.chunked(7).forEach { week ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                        week.forEach { day ->
-                            CalendarDay(day = day, isSuccess = day % 3 != 0, isSlip = day == 12 || day == 3, isToday = day == 20)
+                        week.forEach { stat ->
+                            val calendar = java.util.Calendar.getInstance().apply { timeInMillis = stat.dateMillis }
+                            val dayNum = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                            val isToday = android.text.format.DateUtils.isToday(stat.dateMillis)
+                            
+                            CalendarDay(
+                                day = dayNum,
+                                isSuccess = stat.status == com.svoboden.app.domain.usecase.DayStatus.CLEAN,
+                                isSlip = stat.status == com.svoboden.app.domain.usecase.DayStatus.RELAPSE,
+                                isToday = isToday
+                            )
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
@@ -317,4 +404,28 @@ fun RecentNoteCard(text: String, time: String) {
             }
         }
     }
+}
+
+@Composable
+fun AddNoteDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var text by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Добавить заметку") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                label = { Text("Как ваши дела?") },
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(onClick = { onSave(text) }, enabled = text.isNotBlank()) { Text("Сохранить") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена") }
+        }
+    )
 }

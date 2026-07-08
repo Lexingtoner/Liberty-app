@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
+@OptIn(ExperimentalStdlibApi::class)
 class AchievementRepositoryImpl @Inject constructor(
     private val dao: AchievementDao
 ) : AchievementRepository {
@@ -24,5 +25,6 @@ class AchievementRepositoryImpl @Inject constructor(
         return true
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     private fun UnlockedAchievementEntity.toDomain() = UnlockedAchievement(id, habitId, achievementKey, unlockedAt)
 }

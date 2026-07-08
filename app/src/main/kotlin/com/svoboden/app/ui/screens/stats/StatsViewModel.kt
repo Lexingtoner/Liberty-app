@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -23,12 +24,14 @@ data class StatsUiState(
     val isLoading: Boolean = false,
     val dailyStats: List<DayStat> = emptyList(),
     val bestStreakDays: Long = 0,
-    val cleanDaysCount: Int = 0
+    val cleanDaysCount: Int = 0,
+    val recentEntries: List<com.svoboden.app.domain.model.JournalEntry> = emptyList()
 )
 
 @HiltViewModel
 class StatsViewModel @Inject constructor(
     private val habitRepo: HabitRepository,
+    private val journalRepo: com.svoboden.app.domain.repository.JournalRepository,
     private val getDailyStats: GetDailyStatsUseCase,
     private val getBestStreak: GetBestStreakUseCase
 ) : ViewModel() {
@@ -43,13 +46,41 @@ class StatsViewModel @Inject constructor(
         _uiState.update { it.copy(isLoading = true, selectedHabitId = habitId) }
         val stats = getDailyStats(habitId)
         val bestStreakDays = getBestStreak(habitId)
-        _uiState.update {
-            it.copy(
-                isLoading = false,
-                dailyStats = stats,
-                bestStreakDays = bestStreakDays,
-                cleanDaysCount = stats.count { s -> s.status == DayStatus.CLEAN }
-            )
+        
+        journalRepo.observeEntries(habitId).collectLatest { entries ->
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    dailyStats = stats,
+                    bestStreakDays = bestStreakDays,
+                    cleanDaysCount = stats.count { s -> s.status == DayStatus.CLEAN },
+                    recentEntries = entries.sortedByDescending { e -> e.date }
+                )
+            }
         }
+    }
+
+    fun addQuickNote(text: String) = viewModelScope.launch {
+        val habitId = _uiState.value.selectedHabitId ?: return@launch
+        journalRepo.addEntry(
+            com.svoboden.app.domain.model.JournalEntry(
+                habitId = habitId,
+                date = System.currentTimeMillis(),
+                hadRelapse = false,
+                customNote = text
+            )
+        )
+    }
+
+    fun logTrigger(triggerId: Long) = viewModelScope.launch {
+        val habitId = _uiState.value.selectedHabitId ?: return@launch
+        journalRepo.addEntry(
+            com.svoboden.app.domain.model.JournalEntry(
+                habitId = habitId,
+                date = System.currentTimeMillis(),
+                hadRelapse = true,
+                triggerId = triggerId
+            )
+        )
     }
 }

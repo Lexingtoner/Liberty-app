@@ -6,6 +6,7 @@ import com.svoboden.app.data.local.entity.HabitEntity
 import com.svoboden.app.domain.model.Habit
 import com.svoboden.app.domain.model.HabitType
 import com.svoboden.app.domain.repository.HabitRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -17,6 +18,7 @@ class HabitRepositoryImpl @Inject constructor(
     private val activeProfileHolder: ActiveProfileHolder
 ) : HabitRepository {
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeHabits(): Flow<List<Habit>> =
         activeProfileHolder.activeProfileId
             .filterNotNull()
@@ -51,6 +53,7 @@ class HabitRepositoryImpl @Inject constructor(
         type = HabitType.valueOf(type),
         customName = customName,
         unit = unit,
+        dailyCost = dailyCost,
         goalDays = goalDays,
         createdAt = createdAt
     )
@@ -61,6 +64,7 @@ class HabitRepositoryImpl @Inject constructor(
         type = type.name,
         customName = customName,
         unit = unit,
+        dailyCost = dailyCost,
         goalDays = goalDays,
         createdAt = createdAt
     )

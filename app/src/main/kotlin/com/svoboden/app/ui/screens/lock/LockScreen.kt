@@ -1,5 +1,7 @@
 package com.svoboden.app.ui.screens.lock
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -16,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import com.svoboden.app.core.security.BiometricAuthenticator
 
+@RequiresApi(Build.VERSION_CODES.P)
 @Composable
 fun LockScreen(onUnlocked: () -> Unit) {
     val activity = LocalContext.current as FragmentActivity

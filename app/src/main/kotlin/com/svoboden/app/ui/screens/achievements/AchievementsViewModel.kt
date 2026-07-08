@@ -28,7 +28,9 @@ data class BadgeUiModel(
 data class AchievementsUiState(
     val selectedHabitId: Long? = null,
     val streakBadges: List<BadgeUiModel> = emptyList(),
-    val milestoneBadges: List<BadgeUiModel> = emptyList()
+    val milestoneBadges: List<BadgeUiModel> = emptyList(),
+    val totalPoints: Int = 0,
+    val level: Int = 1
 )
 
 @HiltViewModel
@@ -47,6 +49,11 @@ class AchievementsViewModel @Inject constructor(
         _uiState.update { it.copy(selectedHabitId = habitId) }
         achievementRepo.observeUnlocked(habitId).collectLatest { unlocked ->
             val unlockedKeys = unlocked.map { it.achievementKey }.toSet()
+            
+            // Расчет баллов: 100 за каждое достижение
+            val points = unlockedKeys.size * 100
+            val level = (points / 500) + 1
+            
             _uiState.update {
                 it.copy(
                     streakBadges = AchievementType.entries.map { type ->
@@ -54,7 +61,9 @@ class AchievementsViewModel @Inject constructor(
                     },
                     milestoneBadges = MilestoneAchievementType.entries.map { type ->
                         BadgeUiModel(type.name, type.title, type.description, type.name in unlockedKeys)
-                    }
+                    },
+                    totalPoints = points,
+                    level = level
                 )
             }
         }

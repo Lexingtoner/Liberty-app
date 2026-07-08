@@ -23,6 +23,7 @@ data class HabitEntity(
     val type: String,          // HabitType.name
     val customName: String?,
     val unit: String,
+    val dailyCost: Double = 0.0,
     val goalDays: Int?,
     val createdAt: Long
 )

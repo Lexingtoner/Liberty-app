@@ -1,5 +1,9 @@
 package com.svoboden.app.ui.screens.profile
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,30 +15,119 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.svoboden.app.core.security.BiometricAvailability
+import com.svoboden.app.domain.usecase.ImportResult
+import com.svoboden.app.ui.screens.achievements.AchievementsViewModel
+import com.svoboden.app.ui.screens.dashboard.DashboardViewModel
+import com.svoboden.app.ui.screens.settings.ExportResult
 import com.svoboden.app.ui.screens.settings.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     onNavigateToProfileSelect: () -> Unit,
-    settingsViewModel: SettingsViewModel = hiltViewModel()
+    onEditHabit: (Long) -> Unit,
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
+    achievementsViewModel: AchievementsViewModel = hiltViewModel(),
+    dashboardViewModel: DashboardViewModel = hiltViewModel()
 ) {
+    val achievementsState by achievementsViewModel.uiState.collectAsStateWithLifecycle()
+    val habits by achievementsViewModel.habits.collectAsStateWithLifecycle()
+    val dashboardProgress by dashboardViewModel.progressMap.collectAsStateWithLifecycle()
+    
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    var showImportWarning by remember { mutableStateOf(false) }
+    var showUnavailableDialog by remember { mutableStateOf(false) }
+    var showPrivacyDialog by remember { mutableStateOf(false) }
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let { settingsViewModel.exportData(it, context) }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { settingsViewModel.importData(it, context) }
+    }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    LaunchedEffect(Unit) {
+        settingsViewModel.exportResult.collect { result ->
+            val msg = when (result) {
+                is ExportResult.Success -> "Данные экспортированы"
+                is ExportResult.Error -> result.msg
+            }
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
+    LaunchedEffect(Unit) {
+        settingsViewModel.importResult.collect { result ->
+            val msg = when (result) {
+                is ImportResult.Success -> "Импортировано: ${result.habitsCount} привычек"
+                is ImportResult.Error -> result.message
+            }
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
+
+    LaunchedEffect(habits) {
+        if (achievementsState.selectedHabitId == null) {
+            habits.firstOrNull()?.let { achievementsViewModel.selectHabit(it.id) }
+        }
+    }
+
+    if (showImportWarning) {
+        AlertDialog(
+            onDismissRequest = { showImportWarning = false },
+            title = { Text("Импортировать данные?") },
+            text = { Text("Импорт добавит привычки и записи из файла к текущему профилю.") },
+            confirmButton = {
+                TextButton(onClick = { showImportWarning = false; importLauncher.launch(arrayOf("application/json")) }) { Text("Продолжить") }
+            },
+            dismissButton = { TextButton(onClick = { showImportWarning = false }) { Text("Отмена") } }
+        )
+    }
+
+    if (showUnavailableDialog) {
+        AlertDialog(
+            onDismissRequest = { showUnavailableDialog = false },
+            title = { Text("Блокировка недоступна") },
+            text = { Text("Сначала настройте блокировку экрана в системе.") },
+            confirmButton = { TextButton(onClick = { showUnavailableDialog = false }) { Text("Понятно") } }
+        )
+    }
+
+    if (showPrivacyDialog) {
+        PrivacySettingsDialog(
+            onDismiss = { showPrivacyDialog = false },
+            viewModel = settingsViewModel,
+            onShowUnavailable = { showUnavailableDialog = true },
+            onExportClick = { exportLauncher.launch("svoboden_backup.json") },
+            onImportClick = { showImportWarning = true }
+        )
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .alpha(1f)
                     .absolutePadding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -71,19 +164,25 @@ fun ProfileScreen(
                 .padding(padding),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)
         ) {
-            // Карточка профиля
             item {
-                UserInfoCard(name = "Алекс Морган", level = 14, points = 2450)
+                UserInfoCard(
+                    name = "Alex Morgan", 
+                    level = achievementsState.level, 
+                    points = achievementsState.totalPoints
+                )
                 Spacer(modifier = Modifier.height(16.dp))
             }
             
-            // Выделение стрика
             item {
-                StreakHighlightCard(days = 12)
+                val currentHabitId = achievementsState.selectedHabitId
+                val progress = currentHabitId?.let { dashboardProgress[it] }
+                val streak = (progress?.streak as? com.svoboden.app.domain.usecase.StreakResult.Active)?.elapsedMs ?: 0L
+                val days = (streak / 86_400_000L).toInt()
+                
+                StreakHighlightCard(days = days)
                 Spacer(modifier = Modifier.height(24.dp))
             }
             
-            // Вехи (Milestones)
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -95,18 +194,24 @@ fun ProfileScreen(
                         Text("Смотреть все", color = Color(0xFF006A4E), fontWeight = FontWeight.Bold)
                     }
                 }
-                MilestonesRow()
+                MilestonesRow(
+                    streakBadges = achievementsState.streakBadges,
+                    milestoneBadges = achievementsState.milestoneBadges
+                )
                 Spacer(modifier = Modifier.height(24.dp))
             }
             
-            // Настройки (Preferences)
             item {
                 Text("Настройки", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
                 Spacer(modifier = Modifier.height(16.dp))
-                PreferencesSection(onNavigateToProfileSelect = onNavigateToProfileSelect)
+                PreferencesSection(
+                    onManageHabits = { habits.firstOrNull()?.let { onEditHabit(it.id) } },
+                    onPrivacyClick = { showPrivacyDialog = true },
+                    settingsViewModel = settingsViewModel,
+                    notificationPermissionLauncher = notificationPermissionLauncher
+                )
             }
             
-            // Выход
             item {
                 Spacer(modifier = Modifier.height(24.dp))
                 OutlinedButton(
@@ -156,7 +261,7 @@ fun UserInfoCard(name: String, level: Int, points: Int) {
             }
             Spacer(modifier = Modifier.height(8.dp))
             LinearProgressIndicator(
-                progress = { 0.6f },
+                progress = { (points % 500).toFloat() / 500f },
                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
                 color = Color(0xFF10B981),
                 trackColor = Color(0xFFE2E8F0)
@@ -195,20 +300,18 @@ fun StreakHighlightCard(days: Int) {
 }
 
 @Composable
-fun MilestonesRow() {
-    val milestones = listOf(
-        MilestoneItem("7 Days Hero", Icons.Default.EmojiEvents, Color(0xFFEBF8FF), Color(0xFF3182CE)),
-        MilestoneItem("Financial Master", Icons.Default.AccountBalanceWallet, Color(0xFFF0FFF4), Color(0xFF38A169)),
-        MilestoneItem("Deep Breather", Icons.Default.Air, Color(0xFFFFF5F5), Color(0xFFE53E3E)),
-        MilestoneItem("30 Days...", Icons.Default.Lock, Color(0xFFF8FAFC), Color(0xFF94A3B8), isLocked = true)
-    )
+fun MilestonesRow(
+    streakBadges: List<com.svoboden.app.ui.screens.achievements.BadgeUiModel>,
+    milestoneBadges: List<com.svoboden.app.ui.screens.achievements.BadgeUiModel>
+) {
+    val allBadges = (streakBadges + milestoneBadges).take(4)
     
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.padding(top = 8.dp)
     ) {
-        items(milestones.size) { index ->
-            val item = milestones[index]
+        items(allBadges.size) { index ->
+            val item = allBadges[index]
             Card(
                 modifier = Modifier.width(100.dp),
                 shape = RoundedCornerShape(16.dp),
@@ -223,10 +326,15 @@ fun MilestonesRow() {
                         modifier = Modifier
                             .size(48.dp)
                             .clip(CircleShape)
-                            .background(item.bgColor),
+                            .background(if (item.isUnlocked) Color(0xFFEBF8FF) else Color(0xFFF8FAFC)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(item.icon, null, tint = item.iconColor, modifier = Modifier.size(24.dp))
+                        Icon(
+                            imageVector = if (item.isUnlocked) Icons.Default.EmojiEvents else Icons.Default.Lock,
+                            contentDescription = null, 
+                            tint = if (item.isUnlocked) Color(0xFF3182CE) else Color(0xFF94A3B8), 
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
@@ -234,7 +342,7 @@ fun MilestonesRow() {
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
-                        color = if (item.isLocked) Color(0xFF94A3B8) else Color(0xFF1E293B),
+                        color = if (!item.isUnlocked) Color(0xFF94A3B8) else Color(0xFF1E293B),
                         lineHeight = 14.sp
                     )
                 }
@@ -243,16 +351,16 @@ fun MilestonesRow() {
     }
 }
 
-data class MilestoneItem(
-    val title: String,
-    val icon: ImageVector,
-    val bgColor: Color,
-    val iconColor: Color,
-    val isLocked: Boolean = false
-)
-
 @Composable
-fun PreferencesSection(onNavigateToProfileSelect: () -> Unit) {
+fun PreferencesSection(
+    onManageHabits: () -> Unit,
+    onPrivacyClick: () -> Unit,
+    settingsViewModel: SettingsViewModel,
+    notificationPermissionLauncher: androidx.activity.result.ActivityResultLauncher<String>
+) {
+    val reminderEnabled by settingsViewModel.reminderEnabled.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -264,7 +372,8 @@ fun PreferencesSection(onNavigateToProfileSelect: () -> Unit) {
                 title = "Управление привычками",
                 subtitle = "Обновите цели и расписания",
                 icon = Icons.Default.EditCalendar,
-                iconColor = Color(0xFF10B981)
+                iconColor = Color(0xFF10B981),
+                onClick = onManageHabits
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFF1F5F9))
             PreferenceItem(
@@ -272,17 +381,106 @@ fun PreferencesSection(onNavigateToProfileSelect: () -> Unit) {
                 subtitle = "Ежедневные напоминания и оповещения",
                 icon = Icons.Default.NotificationsNone,
                 iconColor = Color(0xFF3B82F6),
-                trailing = { Switch(checked = true, onCheckedChange = { }) }
+                trailing = { 
+                    Switch(
+                        checked = reminderEnabled, 
+                        onCheckedChange = { enabled ->
+                            if (enabled && Build.VERSION.SDK_INT >= 33 &&
+                                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                            ) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                            settingsViewModel.toggleReminder(enabled, 20, 0)
+                        }
+                    ) 
+                }
             )
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = Color(0xFFF1F5F9))
             PreferenceItem(
-                title = "Конфиденциальность и безопасность",
-                subtitle = "Экспорт данных и безопасность аккаунта",
+                title = "Конфиденциальность и данные",
+                subtitle = "Защита, экспорт и импорт данных",
                 icon = Icons.Default.Shield,
-                iconColor = Color(0xFF64748B)
+                iconColor = Color(0xFF64748B),
+                onClick = onPrivacyClick
             )
         }
     }
+}
+
+@Composable
+fun PrivacySettingsDialog(
+    onDismiss: () -> Unit,
+    viewModel: SettingsViewModel,
+    onShowUnavailable: () -> Unit,
+    onExportClick: () -> Unit,
+    onImportClick: () -> Unit
+) {
+    val biometricEnabled by viewModel.biometricLockEnabled.collectAsStateWithLifecycle()
+    val timeoutSeconds by viewModel.lockTimeoutSeconds.collectAsStateWithLifecycle()
+    val status = remember { viewModel.biometricStatus() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Конфиденциальность") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Блокировка приложения", fontWeight = FontWeight.Bold)
+                        Text(
+                            text = when (status) {
+                                BiometricAvailability.Status.AVAILABLE -> "Биометрия или PIN"
+                                else -> "Настройте защиту в системе"
+                            },
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                    Switch(
+                        checked = biometricEnabled,
+                        enabled = status == BiometricAvailability.Status.AVAILABLE,
+                        onCheckedChange = { 
+                            if (status != BiometricAvailability.Status.AVAILABLE) onShowUnavailable()
+                            else viewModel.toggleBiometricLock(it)
+                        }
+                    )
+                }
+                
+                if (biometricEnabled) {
+                    Text("Таймаут блокировки", style = MaterialTheme.typography.labelLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0 to "Сразу", 30 to "30с", 300 to "5м").forEach { (sec, label) ->
+                            FilterChip(
+                                selected = timeoutSeconds == sec,
+                                onClick = { viewModel.setLockTimeout(sec) },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                }
+                
+                HorizontalDivider()
+                
+                TextButton(onClick = { 
+                    onExportClick()
+                    onDismiss()
+                }) {
+                    Icon(Icons.Default.Upload, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Экспортировать JSON")
+                }
+                TextButton(onClick = { 
+                    onImportClick()
+                    onDismiss()
+                }) {
+                    Icon(Icons.Default.Download, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Импортировать JSON")
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Закрыть") } }
+    )
 }
 
 @Composable
@@ -291,12 +489,13 @@ fun PreferenceItem(
     subtitle: String,
     icon: ImageVector,
     iconColor: Color,
+    onClick: () -> Unit = {},
     trailing: @Composable (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { }
+            .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

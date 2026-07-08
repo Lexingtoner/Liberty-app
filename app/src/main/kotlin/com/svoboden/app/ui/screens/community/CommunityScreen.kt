@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material3.*
@@ -20,13 +21,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CommunityScreen() {
+fun CommunityScreen(viewModel: CommunityViewModel = hiltViewModel()) {
+    val posts by viewModel.filteredPosts.collectAsStateWithLifecycle()
+    val selectedFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
+    var showShareDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    if (showShareDialog) {
+        ShareProgressDialog(
+            onDismiss = { showShareDialog = false },
+            onShare = { title, content ->
+                viewModel.shareProgress("Alex", title, content)
+                showShareDialog = false
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             Row(
@@ -68,36 +87,28 @@ fun CommunityScreen() {
             contentPadding = PaddingValues(bottom = 20.dp)
         ) {
             item {
-                CommunityBanner()
+                CommunityBanner(onShareClick = { showShareDialog = true })
             }
             
             item {
-                CommunityFilters()
-            }
-            
-            item {
-                PostItem(
-                    author = "Джеймс Д.",
-                    time = "2 часа назад",
-                    title = "Как я выжил в первую неделю",
-                    content = "Первые 3 дня были самыми трудными. Я постоянно тянулся к телефону, чтобы отвлечься от тяги. Что мне больше всего помогло, так это техника дыхания 4-7-8, когда наступала волна...",
-                    likes = 124,
-                    comments = 18,
-                    tag = "ВЕХА",
-                    tagColor = Color(0xFF68D391)
+                CommunityFilters(
+                    selectedFilter = selectedFilter,
+                    onFilterSelected = viewModel::setFilter
                 )
             }
             
-            item {
+            items(posts) { post ->
                 PostItem(
-                    author = "Мария К.",
-                    time = "5 часов назад",
-                    title = "Советы по управлению стрессом",
-                    content = "Стресс часто является самым большим триггером для рецидива. Я начала вести 5-минутный утренний дневник, где записываю три вещи, за которые я благодарна. Это звучит просто, но это меняет весь мой настрой...",
-                    likes = 89,
-                    comments = 7,
-                    tag = "СОВЕТЫ",
-                    tagColor = Color(0xFFF6AD55)
+                    author = post.author,
+                    time = post.time,
+                    title = post.title,
+                    content = post.content,
+                    likes = post.likes,
+                    comments = post.comments,
+                    tag = post.tag,
+                    tagColor = post.tagColor,
+                    hasImage = post.hasImage,
+                    onLikeClick = { viewModel.toggleLike(post.id) }
                 )
             }
         }
@@ -105,7 +116,7 @@ fun CommunityScreen() {
 }
 
 @Composable
-fun CommunityBanner() {
+fun CommunityBanner(onShareClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -135,7 +146,7 @@ fun CommunityBanner() {
             )
             Spacer(modifier = Modifier.weight(1f))
             Button(
-                onClick = { },
+                onClick = onShareClick,
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                 shape = RoundedCornerShape(20.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
@@ -150,7 +161,7 @@ fun CommunityBanner() {
 }
 
 @Composable
-fun CommunityFilters() {
+fun CommunityFilters(selectedFilter: String, onFilterSelected: (String) -> Unit) {
     val filters = listOf("Все истории", "Вехи", "Снятие стресса")
     LazyRow(
         contentPadding = PaddingValues(horizontal = 20.dp),
@@ -159,8 +170,8 @@ fun CommunityFilters() {
     ) {
         items(filters) { filter ->
             FilterChip(
-                selected = filter == "Все истории",
-                onClick = { },
+                selected = filter == selectedFilter,
+                onClick = { onFilterSelected(filter) },
                 label = { Text(filter) },
                 shape = RoundedCornerShape(20.dp),
                 colors = FilterChipDefaults.filterChipColors(
@@ -184,8 +195,12 @@ fun PostItem(
     likes: Int,
     comments: Int,
     tag: String,
-    tagColor: Color
+    tagColor: Color,
+    hasImage: Boolean = false,
+    onLikeClick: () -> Unit = {}
 ) {
+    var isExpanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -237,13 +252,15 @@ fun PostItem(
                 text = content,
                 fontSize = 14.sp,
                 color = Color(0xFF475569),
-                lineHeight = 22.sp
+                lineHeight = 22.sp,
+                maxLines = if (isExpanded) Int.MAX_VALUE else 3,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Заглушка для изображения если оно есть (как на скриншоте)
-            if (title.contains("первую неделю")) {
+            // Заглушка для изображения
+            if (hasImage) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -260,17 +277,66 @@ fun PostItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.FavoriteBorder, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                    IconButton(onClick = onLikeClick, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.FavoriteBorder, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                    }
                     Text(" $likes", fontSize = 12.sp, color = Color(0xFF94A3B8))
                     Spacer(modifier = Modifier.width(16.dp))
                     Icon(Icons.Default.ChatBubbleOutline, null, tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
                     Text(" $comments", fontSize = 12.sp, color = Color(0xFF94A3B8))
                 }
-                TextButton(onClick = { }) {
-                    Text("Читать далее", color = Color(0xFF006A4E), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF006A4E), modifier = Modifier.size(16.dp))
+                TextButton(onClick = { isExpanded = !isExpanded }) {
+                    Text(
+                        text = if (isExpanded) "Свернуть" else "Читать далее", 
+                        color = Color(0xFF006A4E), 
+                        fontWeight = FontWeight.Bold, 
+                        fontSize = 14.sp
+                    )
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ChevronRight, 
+                        contentDescription = null, 
+                        tint = Color(0xFF006A4E), 
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
         }
     }
+}
+
+@Composable
+fun ShareProgressDialog(onDismiss: () -> Unit, onShare: (String, String) -> Unit) {
+    var title by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var content by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Поделиться прогрессом") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Заголовок") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = content,
+                    onValueChange = { content = it },
+                    label = { Text("Ваша история") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onShare(title, content) },
+                enabled = title.isNotBlank() && content.isNotBlank()
+            ) { Text("Опубликовать") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена") }
+        }
+    )
 }
